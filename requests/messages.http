@@ -1,0 +1,11 @@
+GET http://localhost:8080/messages/command
+Content-Type: application/json
+
+{"command" :  "go!"}
+
+####
+
+GET http://localhost:8080/messages/query
+Content-Type: application/json
+
+{}
