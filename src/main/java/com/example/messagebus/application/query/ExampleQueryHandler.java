@@ -1,11 +1,12 @@
 package com.example.messagebus.application.query;
 
-import com.example.messagebus.application.commands.ExampleCommand;
-import com.kov.messagebus.MessageHandler;
+import com.kov.messagebus.handlers.QueryHandler;
+import org.springframework.stereotype.Component;
 
-@MessageHandler
-public class ExampleQueryHandler {
-    public String invoke(ExampleQuery message) {
-        return "Some data returned from query";
+@Component
+class ExampleQueryHandler implements QueryHandler<ExampleQuery, String> {
+    @Override
+    public String handle(ExampleQuery exampleQuery) {
+        return "Some data returned from the query";
     }
 }

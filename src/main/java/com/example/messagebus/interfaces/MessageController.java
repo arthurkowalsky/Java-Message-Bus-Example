@@ -1,6 +1,6 @@
 package com.example.messagebus.interfaces;
 
-import com.example.messagebus.application.commands.ExampleCommand;
+import com.example.messagebus.application.command.ExampleCommand;
 import com.example.messagebus.application.query.ExampleQuery;
 import com.kov.messagebus.MessageBusInterface;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,11 +22,13 @@ public class MessageController {
 
     @GetMapping(path = "/command")
     public void processCommand(@RequestBody String messageContent) {
-        commandBus.invoke(new ExampleCommand(messageContent));
+        commandBus.dispatch(new ExampleCommand(messageContent));
     }
 
     @GetMapping(path = "/query")
     public String processQuery(@RequestBody String messageContent) {
-        return queryBus.invoke(new ExampleQuery());
+        String resultFromQuery = queryBus.dispatch(new ExampleQuery());
+
+        return resultFromQuery;
     }
 }
