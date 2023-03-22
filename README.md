@@ -1,22 +1,11 @@
 # Java Message Bus Example
 
-This is an example project demonstrating the usage of the Java Message Bus library in a Spring Boot application. The Java Message Bus library provides a simple and effective way to handle messages, such as commands and queries, in a decoupled manner using handlers.
+This project demonstrates how to use the MessageBus library with Spring Boot. It shows the integration of Command and Query buses, along with Event handling using the MessageBus.
 
 ## Features
 
 - Message handling with a simple and intuitive API
-- Automatic package scanning for message handlers
 - Easy integration with Spring Boot
-
-## Project Structure
-
-The project is organized into the following packages and classes:
-
-- `com.example.messagebus`: The main Spring Boot application class (`JavaMessageBusExampleApplication`).
-- `com.example.messagebus.interfaces`: Contains the `MessageController` class, which exposes REST endpoints for processing commands and queries.
-- `com.example.messagebus.infrastructure.configuration`: Contains the `MessageBusConfiguration` class, which defines the `MessageBusInterface` beans for command and query buses.
-- `com.example.messagebus.application.commands`: Contains the `ExampleCommand` and `ExampleCommandHandler` classes.
-- `com.example.messagebus.application.query`: Contains the `ExampleQuery` and `ExampleQueryHandler` classes.
 
 ## Getting Started
 
@@ -26,43 +15,99 @@ The project is organized into the following packages and classes:
 <dependency>
 <groupId>com.kov</groupId>
 <artifactId>messagebus</artifactId>
-<version>1.0.0</version>
+<version>2.0.0</version>
 </dependency>
 ```
 
 2. Configure the message buses in your Spring Boot application:
 
 ```java
+
+import com.kov.messagebus.MessageBus;
+import com.kov.messagebus.MessageBusInterface;
+import com.kov.messagebus.handlers.CommandHandler;
+import com.kov.messagebus.handlers.EventHandler;
+import com.kov.messagebus.handlers.QueryHandler;
+import com.kov.messagebus.middlewares.LoggingMiddleware;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
+
 @Configuration
-public class MessageBusConfiguration {
-@Bean
-public MessageBusInterface commandBus() {
-return new MessageBus(getClass().getPackage().getName());
-}
+public class MessageBusConfiguration{
+    @Bean
+    public MessageBusInterface commandBus(ObjectProvider<CommandHandler> handlers) {
+        return MessageBus.create().withHandlers(handlers.stream().toList());
+    }
 
     @Bean
-    public MessageBusInterface queryBus() {
-        return new MessageBus(getClass().getPackage().getName());
+    public MessageBusInterface queryBus(ObjectProvider<QueryHandler> handlers) {
+        return MessageBus.create().withHandlers((handlers.stream().toList()));
     }
+
+    @Bean
+    public MessageBusInterface eventBus(ObjectProvider<EventHandler> handlers) {
+        return MessageBus.create()
+                .withMiddlewares(List.of(new LoggingMiddleware()))
+                .withAllowNoHandlers(true)
+                .withHandlers((handlers.stream().toList()));
+    }
+}
+
+```
+
+3. Create messages and handlers by implementing the `handle` method:
+
+```java
+// ExampleCommand
+public final record ExampleCommand(String content) implements Command {
+}
+
+// ExampleQuery
+public final class ExampleQuery implements Query {
+}
+
+// ExampleCommandHandledEvent
+public final class ExampleCommandHandledEvent implements Event {
 }
 ```
 
-3. Create message handlers by annotating classes with `@MessageHandler` and implementing the `invoke` method:
-
 ```java
-@MessageHandler
-public class ExampleCommandHandler {
-public void invoke(ExampleCommand message) {
-// Handle the command
-}
+// ExampleCommandHandler
+@Component
+class ExampleCommandHandler implements CommandHandler<ExampleCommand> {
+    private final MessageBusInterface eventBus;
+    ExampleCommandHandler(MessageBusInterface eventBus) {
+        this.eventBus = eventBus;
+    }
+
+    @Override
+    public Void handle(ExampleCommand exampleCommand) {
+        this.eventBus.dispatch(new ExampleCommandHandledEvent());
+        return null;
+    }
 }
 
-@MessageHandler
-public class ExampleQueryHandler {
-public String invoke(ExampleQuery message) {
-// Handle the query and return a result
+// ExampleQueryHandler
+@Component
+class ExampleQueryHandler implements QueryHandler<ExampleQuery, String> {
+    @Override
+    public String handle(ExampleQuery exampleQuery) {
+        return "Some data returned from the query";
+    }
 }
+
+// ExampleCommandHandledEventHandler
+@Component
+public class ExampleCommandHandledEventHandler implements EventHandler<ExampleCommandHandledEvent> {
+    @Override
+    public Void handle(ExampleCommandHandledEvent exampleCommandHandledEvent) {
+        return null;
+    }
 }
+
 ```
 
 4. Inject the command and query buses into your controllers or other components:
@@ -71,23 +116,32 @@ public String invoke(ExampleQuery message) {
 @RestController
 @RequestMapping("/messages")
 public class MessageController {
-private final MessageBusInterface commandBus;
-private final MessageBusInterface queryBus;
+    private final MessageBusInterface commandBus;
+    private final MessageBusInterface queryBus;
 
     public MessageController(MessageBusInterface commandBus, MessageBusInterface queryBus) {
         this.commandBus = commandBus;
         this.queryBus = queryBus;
     }
 
-    // Define endpoints for processing commands and queries
+    @GetMapping(path = "/command")
+    public void processCommand(@RequestBody String messageContent) {
+        commandBus.dispatch(new ExampleCommand(messageContent));
+    }
+
+    @GetMapping(path = "/query")
+    public String processQuery(@RequestBody String messageContent) {
+        return queryBus.dispatch(new ExampleQuery());
+    }
 }
 ```
 
-5. Use the `invoke` method on the message bus to process messages:
+5. Use the `dispatch` method on the message bus to process messages:
 
 ```java
-commandBus.invoke(new ExampleCommand("Command content"));
-String result = queryBus.invoke(new ExampleQuery());
+    commandBus.dispatch(new ExampleCommand(messageContent));
+
+    String result = queryBus.invoke(new ExampleQuery());
 ```
 
 6. Run your Spring Boot application and enjoy decoupled message handling!
